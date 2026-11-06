@@ -1,0 +1,444 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>FinTrack Pro - Smart Personal Finance & Expense Analytics</title>
+  <meta name="description" content="A modern, full-featured personal finance manager with budgets, recurring subscriptions, and visual analytics." />
+  <link rel="stylesheet" href="/static/css/style.css" />
+  <!-- Chart.js CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+</head>
+<body>
+
+  <!-- Top Navigation Bar -->
+  <header class="navbar">
+    <div class="nav-container">
+      <a href="/" class="brand">
+        <div class="brand-icon">₹</div>
+        <div>
+          <span class="brand-name">FinTrack<span style="color:var(--primary);">Pro</span></span>
+          <span class="brand-badge">v1.0</span>
+        </div>
+      </a>
+
+      <div class="nav-controls">
+        <!-- Month Selector -->
+        <select id="monthSelector" class="select-input" title="Select Reporting Month"></select>
+
+        <!-- Currency Selector -->
+        <select id="currencySelector" class="select-input" title="Select Currency">
+          <option value="$">$ USD</option>
+          <option value="₹">₹ INR</option>
+          <option value="€">€ EUR</option>
+          <option value="£">£ GBP</option>
+          <option value="¥">¥ JPY</option>
+        </select>
+
+        <!-- Seed Demo Data -->
+        <button class="btn btn-outline btn-sm" onclick="seedDemoData()" title="Load realistic 3-month demo transactions & budgets">
+          ⚡ Seed Demo Data
+        </button>
+
+        <!-- Add Transaction Button -->
+        <button class="btn btn-primary" onclick="openTransactionModal()">
+          <span>+</span> New Transaction
+        </button>
+
+        <!-- Theme Toggle -->
+        <button id="themeToggleBtn" class="btn-icon" onclick="toggleTheme()" title="Toggle Dark/Light Mode">
+          <span id="themeIcon">☀️</span>
+        </button>
+
+        <!-- API Docs Link -->
+        <a href="/docs" target="_blank" class="btn btn-secondary btn-sm" title="View interactive OpenAPI Swagger documentation">
+          API Docs ↗
+        </a>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Container -->
+  <main class="container">
+
+    <!-- Dynamic Alert Banners (Budget alerts, etc.) -->
+    <div id="alertContainer" class="alert-container"></div>
+
+    <!-- Financial Key Metrics Grid -->
+    <section class="metrics-grid">
+      <!-- Total Net Balance -->
+      <div class="metric-card">
+        <div class="metric-header">
+          <span class="metric-title">Total Net Balance</span>
+          <div class="metric-icon-badge" style="background-color: var(--primary-light); color: var(--primary);">🏦</div>
+        </div>
+        <div id="metricTotalBalance" class="metric-value">$0.00</div>
+        <div class="metric-footer">
+          <span>Cumulative all-time net balance</span>
+        </div>
+      </div>
+
+      <!-- Monthly Income -->
+      <div class="metric-card">
+        <div class="metric-header">
+          <span class="metric-title">Monthly Income</span>
+          <div class="metric-icon-badge" style="background-color: var(--success-bg); color: var(--success);">📈</div>
+        </div>
+        <div id="metricMonthIncome" class="metric-value">$0.00</div>
+        <div class="metric-footer">
+          <span class="trend-positive">Total deposits this month</span>
+        </div>
+      </div>
+
+      <!-- Monthly Expenses -->
+      <div class="metric-card">
+        <div class="metric-header">
+          <span class="metric-title">Monthly Expenses</span>
+          <div class="metric-icon-badge" style="background-color: var(--danger-bg); color: var(--danger);">💳</div>
+        </div>
+        <div id="metricMonthExpense" class="metric-value">$0.00</div>
+        <div class="metric-footer">
+          <span>Daily Burn: <strong id="metricBurnRate">$0.00 / day</strong></span>
+        </div>
+      </div>
+
+      <!-- Net Savings & Savings Rate -->
+      <div class="metric-card">
+        <div class="metric-header">
+          <span class="metric-title">Net Savings</span>
+          <div class="metric-icon-badge" style="background-color: rgba(99, 102, 241, 0.15); color: #6366f1;">🎯</div>
+        </div>
+        <div id="metricNetSavings" class="metric-value">$0.00</div>
+        <div class="metric-footer">
+          <span>Savings Rate: <strong id="metricSavingsRate" class="trend-positive">0.0%</strong></span>
+        </div>
+      </div>
+
+      <!-- Active Recurring Subscriptions -->
+      <div class="metric-card">
+        <div class="metric-header">
+          <span class="metric-title">Subscriptions</span>
+          <div class="metric-icon-badge" style="background-color: rgba(245, 158, 11, 0.15); color: #f59e0b;">🔄</div>
+        </div>
+        <div id="metricActiveSubs" class="metric-value">$0.00 / mo</div>
+        <div class="metric-footer">
+          <span>Active recurring commitments</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Visual Analytics Charts Section -->
+    <section class="charts-grid">
+      <!-- Category Doughnut Breakdown -->
+      <div class="card" style="margin-bottom:0;">
+        <div class="card-header">
+          <h2 class="card-title">🍩 Expense Breakdown by Category</h2>
+        </div>
+        <div class="chart-wrapper">
+          <canvas id="categoryChart"></canvas>
+        </div>
+      </div>
+
+      <!-- 6-Month Income vs Expense Trends -->
+      <div class="card" style="margin-bottom:0;">
+        <div class="card-header">
+          <h2 class="card-title">📊 6-Month Income vs Expense Trend</h2>
+        </div>
+        <div class="chart-wrapper">
+          <canvas id="trendChart"></canvas>
+        </div>
+      </div>
+    </section>
+
+    <!-- Daily Spending Velocity Chart -->
+    <section class="card" style="margin-top: 24px;">
+      <div class="card-header">
+        <h2 class="card-title">⚡ Daily Spending Velocity (Current Month)</h2>
+      </div>
+      <div class="chart-wrapper" style="height: 220px;">
+        <canvas id="dailyChart"></canvas>
+      </div>
+    </section>
+
+    <!-- Budgets & Subscriptions Split Row -->
+    <section class="split-grid">
+      <!-- Category Budgets -->
+      <div class="card" style="margin-bottom:0;">
+        <div class="card-header">
+          <h2 class="card-title">🎯 Monthly Category Budgets</h2>
+          <button class="btn btn-sm btn-outline" onclick="openBudgetModal()">+ Set Budget</button>
+        </div>
+        <div id="budgetList" class="budget-list">
+          <!-- Dynamically populated -->
+        </div>
+      </div>
+
+      <!-- Subscriptions & Recurring Bills -->
+      <div class="card" style="margin-bottom:0;">
+        <div class="card-header">
+          <h2 class="card-title">🔄 Recurring Subscriptions & Bills</h2>
+          <button class="btn btn-sm btn-outline" onclick="openSubscriptionModal()">+ Add Service</button>
+        </div>
+        <div id="subscriptionList" class="subscription-list">
+          <!-- Dynamically populated -->
+        </div>
+      </div>
+    </section>
+
+    <!-- Transactions History & Management -->
+    <section class="card">
+      <div class="card-header">
+        <h2 class="card-title">📝 Transactions History</h2>
+        <a href="/api/transactions/export/csv" class="btn btn-sm btn-secondary" title="Export transactions to CSV">
+          ⬇ Export CSV
+        </a>
+      </div>
+
+      <!-- Table Search & Filter Toolbar -->
+      <div class="table-controls">
+        <input type="text" id="transSearch" class="text-input search-box" placeholder="Search by title, notes, tags..." />
+        <select id="transTypeFilter" class="select-input">
+          <option value="">All Types (Income & Expense)</option>
+          <option value="expense">Expenses Only</option>
+          <option value="income">Income Only</option>
+        </select>
+        <select id="transCategoryFilter" class="select-input">
+          <option value="">All Categories</option>
+          <option value="Food & Dining">Food & Dining</option>
+          <option value="Housing & Rent">Housing & Rent</option>
+          <option value="Transportation">Transportation</option>
+          <option value="Utilities & Bills">Utilities & Bills</option>
+          <option value="Shopping">Shopping</option>
+          <option value="Entertainment">Entertainment</option>
+          <option value="Healthcare">Healthcare</option>
+          <option value="Salary">Salary</option>
+          <option value="Investment">Investment</option>
+          <option value="Other">Other</option>
+        </select>
+      </div>
+
+      <!-- Responsive Table -->
+      <div class="table-responsive">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Description</th>
+              <th>Category</th>
+              <th>Type</th>
+              <th>Method</th>
+              <th>Amount</th>
+              <th style="text-align:right;">Actions</th>
+            </tr>
+          </thead>
+          <tbody id="transactionsTableBody">
+            <!-- Dynamically populated -->
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ====================================================================== -->
+  <!-- MODALS -->
+  <!-- ====================================================================== -->
+
+  <!-- Add/Edit Transaction Modal -->
+  <div id="transactionModal" class="modal-overlay">
+    <div class="modal">
+      <div class="modal-header">
+        <h3 id="transModalTitle" class="modal-title">Add Transaction</h3>
+        <button class="modal-close" onclick="closeTransactionModal()">&times;</button>
+      </div>
+      <form id="transForm">
+        <div class="modal-body">
+          <div class="form-group">
+            <label class="form-label">Transaction Title / Description *</label>
+            <input type="text" id="transTitle" class="text-input" placeholder="e.g. Trader Joe's Groceries" required />
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">Amount *</label>
+              <input type="number" id="transAmount" class="text-input" step="0.01" min="0.01" placeholder="45.50" required />
+            </div>
+            <div class="form-group">
+              <label class="form-label">Type *</label>
+              <select id="transType" class="select-input" required>
+                <option value="expense">Expense</option>
+                <option value="income">Income</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">Category *</label>
+              <select id="transCategory" class="select-input" required>
+                <option value="Food & Dining">Food & Dining</option>
+                <option value="Housing & Rent">Housing & Rent</option>
+                <option value="Transportation">Transportation</option>
+                <option value="Utilities & Bills">Utilities & Bills</option>
+                <option value="Shopping">Shopping</option>
+                <option value="Entertainment">Entertainment</option>
+                <option value="Healthcare">Healthcare</option>
+                <option value="Salary">Salary</option>
+                <option value="Investment">Investment</option>
+                <option value="Other">Other</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Payment Method</label>
+              <select id="transMethod" class="select-input">
+                <option value="Credit Card">Credit Card</option>
+                <option value="Debit Card">Debit Card</option>
+                <option value="UPI">UPI</option>
+                <option value="Bank Transfer">Bank Transfer</option>
+                <option value="Cash">Cash</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">Date *</label>
+              <input type="date" id="transDate" class="text-input" required />
+            </div>
+            <div class="form-group">
+              <label class="form-label">Tags (comma-separated)</label>
+              <input type="text" id="transTags" class="text-input" placeholder="groceries,personal" />
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Notes (optional)</label>
+            <input type="text" id="transNotes" class="text-input" placeholder="Additional details..." />
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline" onclick="closeTransactionModal()">Cancel</button>
+          <button type="submit" class="btn btn-primary">Save Transaction</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Add/Edit Budget Modal -->
+  <div id="budgetModal" class="modal-overlay">
+    <div class="modal">
+      <div class="modal-header">
+        <h3 class="modal-title">Set Category Budget</h3>
+        <button class="modal-close" onclick="closeBudgetModal()">&times;</button>
+      </div>
+      <form id="budgetForm">
+        <div class="modal-body">
+          <div class="form-group">
+            <label class="form-label">Category *</label>
+            <select id="budgetCategory" class="select-input" required>
+              <option value="Food & Dining">Food & Dining</option>
+              <option value="Housing & Rent">Housing & Rent</option>
+              <option value="Transportation">Transportation</option>
+              <option value="Utilities & Bills">Utilities & Bills</option>
+              <option value="Shopping">Shopping</option>
+              <option value="Entertainment">Entertainment</option>
+              <option value="Healthcare">Healthcare</option>
+              <option value="Other">Other</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Monthly Spending Limit *</label>
+            <input type="number" id="budgetLimit" class="text-input" step="1" min="1" placeholder="500" required />
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Tag Color</label>
+            <input type="color" id="budgetColor" class="text-input" value="#6366f1" style="height:44px; padding:4px;" />
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline" onclick="closeBudgetModal()">Cancel</button>
+          <button type="submit" class="btn btn-primary">Save Budget</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Add Subscription Modal -->
+  <div id="subscriptionModal" class="modal-overlay">
+    <div class="modal">
+      <div class="modal-header">
+        <h3 class="modal-title">Add Recurring Subscription</h3>
+        <button class="modal-close" onclick="closeSubscriptionModal()">&times;</button>
+      </div>
+      <form id="subForm">
+        <div class="modal-body">
+          <div class="form-group">
+            <label class="form-label">Subscription / Service Name *</label>
+            <input type="text" id="subName" class="text-input" placeholder="e.g. Netflix, Spotify, Gym" required />
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">Amount *</label>
+              <input type="number" id="subAmount" class="text-input" step="0.01" min="0.01" placeholder="15.99" required />
+            </div>
+            <div class="form-group">
+              <label class="form-label">Billing Cycle *</label>
+              <select id="subCycle" class="select-input" required>
+                <option value="monthly">Monthly</option>
+                <option value="yearly">Yearly</option>
+                <option value="weekly">Weekly</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">Category</label>
+              <select id="subCategory" class="select-input">
+                <option value="Entertainment">Entertainment</option>
+                <option value="Utilities & Bills">Utilities & Bills</option>
+                <option value="Healthcare">Healthcare</option>
+                <option value="Shopping">Shopping</option>
+                <option value="Other">Other</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Next Renewal Date *</label>
+              <input type="date" id="subNextDate" class="text-input" required />
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Payment Method</label>
+            <select id="subMethod" class="select-input">
+              <option value="Credit Card">Credit Card</option>
+              <option value="Debit Card">Debit Card</option>
+              <option value="UPI">UPI</option>
+              <option value="Bank Transfer">Bank Transfer</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Notes (optional)</label>
+            <input type="text" id="subNotes" class="text-input" placeholder="e.g. 4K Family plan" />
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline" onclick="closeSubscriptionModal()">Cancel</button>
+          <button type="submit" class="btn btn-primary">Add Subscription</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Toast Notification Container -->
+  <div id="toastContainer" class="toast-container"></div>
+
+  <!-- Application Scripts -->
+  <script src="/static/js/charts.js"></script>
+  <script src="/static/js/app.js"></script>
+</body>
+</html>
